@@ -9,7 +9,7 @@ import sys
 import pickle
 import cv2
 import numpy as np
-
+import scipy.io as sio
 
 def unpickle(file_path):
     fo = open(file_path, "rb")
@@ -57,5 +57,55 @@ def foramt_CIFAR100(step="train"):
     index_writer.close()
 
 
-foramt_CIFAR100("train")
-foramt_CIFAR100("test")
+# foramt_CIFAR100("train")
+# foramt_CIFAR100("test")
+
+def format_Caltech_101():
+    src_image_save_dir = "/Volumes/projects/ImageRetireval/dataset/Caltech_101/src/"
+    caltech_101_index_file = src_image_save_dir + "index_file.csv"
+    index_writer = open(caltech_101_index_file, "w")
+
+    src_dataset_dir = "/Volumes/projects/ImageRetireval/dataset/Caltech_101/"
+    src_image_dir = src_dataset_dir + "101_ObjectCategories/"
+    tpl_src_annotation_dir = src_dataset_dir + "Annotations/" + "{}/annotation_{}.mat"
+    categories = os.listdir(src_image_dir)
+    for class_name in categories:
+        if class_name.startswith("."):
+            continue
+        src_class_image_dir = src_image_dir + class_name + "/"
+        image_name_list = os.listdir(src_class_image_dir)
+        for image_name in image_name_list:
+            if image_name.startswith("."):
+                continue
+            src_image_file_path = src_class_image_dir + image_name
+            image_data = cv2.imread(src_image_file_path)
+            resize_image_data = cv2.resize(image_data, (224, 224), interpolation=cv2.INTER_CUBIC)
+            new_image_save_path = src_image_save_dir + class_name + "_" + image_name
+            cv2.imwrite(new_image_save_path, resize_image_data, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+            index_writer.write("{},{}\n".format(class_name + "_" + image_name, class_name))
+            # image_id = ".".join(image_name.split(".")[:-1]).split("_")[-1]
+            # image_anno_file_path = tpl_src_annotation_dir.format(class_name, image_id)
+            # print(image_anno_file_path)
+            # data = sio.loadmat(image_anno_file_path)
+            # print(data)
+            # sys.exit(0)
+
+# format_Caltech_101()
+
+def format_OxBuild():
+    src_image_save_dir = "/Volumes/projects/ImageRetireval/dataset/OxBuild/src/"
+    oxbuild_index_file = src_image_save_dir + "index_file.csv"
+    index_writer = open(oxbuild_index_file, "w")
+
+    src_image_dir = "/Volumes/projects/ImageRetireval/dataset/OxBuild/not_deal_src/"
+    for image_name in os.listdir(src_image_dir):
+        if image_name.startswith("."):
+            continue
+        class_name = image_name.split("_")[0]
+        image_data = cv2.imread(src_image_dir + image_name)
+        resize_image_data = cv2.resize(image_data, (224, 224), interpolation=cv2.INTER_CUBIC)
+        new_image_save_path = src_image_save_dir + image_name
+        cv2.imwrite(new_image_save_path, resize_image_data, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        index_writer.write("{},{}\n".format(image_name, class_name))
+
+# format_OxBuild()
