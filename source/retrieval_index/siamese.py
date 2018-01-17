@@ -19,6 +19,7 @@ from keras.layers import Input, Dense, Dropout, Reshape, Flatten
 from keras.layers import merge, Conv2D, MaxPooling2D, Lambda
 from keras.models import Model, Sequential
 from keras.regularizers import l2
+from keras.utils.vis_utils import plot_model
 
 from source.retrieval_index.sample_pipline import mnist_dataset_reader
 
@@ -42,6 +43,8 @@ def get_Shared_Model(input_dim):
     sharedNet.add(Dense(128, activation='relu'))
     sharedNet.add(Dropout(0.1))
     sharedNet.add(Dense(128, activation='relu'))
+    # sharedNet.add(Dropout(0.1))
+    # sharedNet.add(Dense(3, activation='relu'))
     # sharedNet = Sequential()
     # sharedNet.add(Dense(4096, activation="tanh", kernel_regularizer=l2(2e-3)))
     # sharedNet.add(Reshape(target_shape=(64, 64, 1)))
@@ -68,11 +71,12 @@ right_output = sharedNet(right_input)
 
 distance = Lambda(euclidean_distance, output_shape=eucl_dist_output_shape)([left_output, right_output])
 siamese_model = Model(inputs=[left_input, right_input], outputs=distance)
-
+siamese_model.summary()
+plot_model(siamese_model, to_file='siamese_model.png', show_shapes=True)
 
 _, tr_pairs, tr_y, te_pairs, te_y = mnist_dataset_reader()
 
-nb_epoch = 10
+nb_epoch = 5
 rms = RMSprop(lr=0.001, rho=0.9)
 siamese_model.compile(loss=contrastive_loss, optimizer=rms)
 siamese_model.fit(
@@ -90,3 +94,4 @@ te_acc = compute_accuracy(pred, te_y)
 print('* Accuracy on training set: %0.4f%%' % (100 * tr_acc))
 print('* Accuracy on test set: %0.4f%%' % (100 * te_acc))
 
+siamese_model.get_layer()

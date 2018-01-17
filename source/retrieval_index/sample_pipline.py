@@ -6,9 +6,12 @@ from __future__ import print_function
 
 import random
 import numpy as np
+import pickle
 
 from keras.datasets import mnist
 
+
+dataset_dir = "/Volumes/projects/ImageRetireval/dataset/"
 
 def create_pairs(x, digit_indices):
     '''Positive and negative pair creation.
@@ -52,3 +55,11 @@ def mnist_dataset_reader():
 	input_dim = 784
 
 	return input_dim, tr_pairs, tr_y, te_pairs, te_y
+
+def cifar100_dataset_reader():
+    feature_file_path = dataset_dir + "CIFAR-100/src/nn_features.pkl"
+    cifar100_features = pickle.load(open(feature_file_path, "rb"))
+    print(cifar100_features)
+    print(cifar100_features.keys())
+
+cifar100_dataset_reader()
