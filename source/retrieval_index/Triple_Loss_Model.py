@@ -38,6 +38,9 @@ grouped = defaultdict(list)
 for i, label in enumerate(y):
     grouped[label].append(i)
 
+for class_id in grouped.keys():
+    grouped[class_id] = np.array(grouped[class_id])
+
 # verify the data is formatted correctly
 print(x.dtype, x.min(), x.max(), x.shape)
 print(y.dtype, y.min(), y.max(), y.shape)
@@ -50,14 +53,17 @@ class DataGenerator:
 
     def __init__(self, x, y, grouped):
         self.x = copy.deepcopy(x)
-        self.y = cody.deepcopy(y)
+        self.y = copy.deepcopy(y)
         self.grouped = copy.deepcopy(grouped)
         self.num_classes = len(grouped)
         self.update_pos_neg_grouped = copy.deepcopy(grouped)
         self.anchor_grouped = copy.deepcopy(grouped)
 
-    def get_triples_data(self, batch_size):
-        indices = self.get_triples_indices(batch_size)
+    def get_triples_data(self, batch_size, is_update=False):
+        if is_update:
+            indices = self.get_triples_indices_with_strategy(batch_size)
+        else:
+            indices = self.get_triples_indices(batch_size)
         return self.x[indices[:,0]], self.x[indices[:,1]], self.x[indices[:,2]]
 
     def get_triples_indices(self, batch_size):
@@ -95,7 +101,7 @@ class DataGenerator:
         self.anchor_grouped[class_id] = anchor_idx
 
 
-def triplet_loss(inputs, dist='sqeuclidean', margin='maxplus'):
+def triplet_loss(inputs, dist='sqeuclidean', margin='maxplus', margin_value=10):
     anchor, positive, negative = inputs
     positive_distance = K.square(anchor - positive)
     negative_distance = K.square(anchor - negative)
@@ -107,9 +113,9 @@ def triplet_loss(inputs, dist='sqeuclidean', margin='maxplus'):
         negative_distance = K.mean(negative_distance, axis=-1, keepdims=True)
     loss = positive_distance - negative_distance
     if margin == 'maxplus':
-        loss = K.maximum(0.0, 10 + loss)
+        loss = K.maximum(0.0, margin_value + loss)
     elif margin == 'softplus':
-        loss = K.log(1 + K.exp(loss))
+        loss = K.log(margin_value + K.exp(loss))
     return K.mean(loss)
 
 def build_model(input_shape):
@@ -154,13 +160,14 @@ class Plotter(keras.callbacks.Callback):
 
 
 class ReCluster(keras.callbacks.Callback):
-    def __init__(self, embedding_model, x, images, grouped, data_sampler_obj=None):
+    def __init__(self, embedding_model, x, images, grouped, data_sampler_obj=None, is_update=False):
         self.embedding_model = embedding_model
         self.x = x
         self.images = images
         self.grouped = grouped
         # 该参数负责在聚类之后更新随机选择数据的候选集合
         self.data_sampler_obj = data_sampler_obj
+        self.is_update = is_update
 
     def cluster_one_class(self, class_id, selected_xy, one_label_image_idx):
         # print(selected_xy)
@@ -190,7 +197,7 @@ class ReCluster(keras.callbacks.Callback):
         # sys.exit(0)
 
     def on_epoch_end(self, epoch, logs={}):
-        if (epoch + 1) % 1 == 0:
+        if (epoch + 1) % 5 != 0 or not self.is_update:
             return
         xy = self.embedding_model.predict(self.x)
         print("total images shape is ", xy.shape)
@@ -200,15 +207,16 @@ class ReCluster(keras.callbacks.Callback):
             self.cluster_one_class(class_id, selected_xy, one_label_image_idx)
 
 batch_size = 100
-epochs = 100
-plot_size = 1024
+epochs = 30
+plot_size = 5000
+is_update = False
 sample_train = DataGenerator(x, y, grouped)
 embedding_model, triplet_model = build_model((28, 28, 1))
 plotter = Plotter(embedding_model, x, colored_x, plot_size)
-recluster = ReCluster(embedding_model, x, colored_x, grouped, sample_train)
+recluster = ReCluster(embedding_model, x, colored_x, grouped, sample_train, is_update=is_update)
 def triplet_generator(x, y, batch_size):
     while True:
-        x_anchor, x_positive, x_negative = sample_train.get_triples_data(batch_size)
+        x_anchor, x_positive, x_negative = sample_train.get_triples_data(batch_size, is_update=is_update)
         yield ({
             'anchor_input': x_anchor,
             'positive_input': x_positive,
@@ -223,4 +231,8 @@ try:
         verbose=True,
         callbacks=[plotter, recluster])
 except KeyboardInterrupt:
+    triplet_model.save("triplet_model.h5")
     pass
+triplet_model.save("triplet_model.h5")
+
+
