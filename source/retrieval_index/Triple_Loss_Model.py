@@ -111,11 +111,22 @@ def triplet_loss(inputs, dist='sqeuclidean', margin='maxplus', margin_value=10):
     elif dist == 'sqeuclidean':
         positive_distance = K.mean(positive_distance, axis=-1, keepdims=True)
         negative_distance = K.mean(negative_distance, axis=-1, keepdims=True)
-    loss = positive_distance - negative_distance
+    pn_distance = positive_distance - negative_distance
     if margin == 'maxplus':
-        loss = K.maximum(0.0, margin_value + loss)
+        loss = K.maximum(0.0, margin_value + pn_distance)
     elif margin == 'softplus':
-        loss = K.log(margin_value + K.exp(loss))
+        loss = K.log(margin_value + K.exp(pn_distance))
+    elif margin == "lgy_maxplus":
+        loss = K.switch(
+            K.greater(pn_distance, margin_value), 
+            margin_value + K.square(pn_distance),
+            K.switch(
+                K.greater(pn_distance, 0.0),
+                margin_value + pn_distance,
+                K.switch(
+                    K.greater(pn_distance, -1.0 * margin_value),
+                    K.abs(pn_distance),
+                    K.maximum(0.0, K.abs(pn_distance)))))
     return K.mean(loss)
 
 def build_model(input_shape):
@@ -141,7 +152,8 @@ def build_model(input_shape):
     inputs = [anchor_input, positive_input, negative_input]
     outputs = [anchor_embedding, positive_embedding, negative_embedding]
     triplet_model = Model(inputs, outputs)
-    triplet_model.add_loss(K.mean(triplet_loss(outputs)))
+    # triplet_model.add_loss(K.mean(triplet_loss(outputs)))
+    triplet_model.add_loss(K.mean(triplet_loss(outputs, dist='sqeuclidean', margin='lgy_maxplus')))
     triplet_model.compile(loss=None, optimizer='adam')
 
     return embedding_model, triplet_model
