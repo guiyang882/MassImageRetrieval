@@ -11,8 +11,12 @@ sys.path.insert(0, proj_dir)
 import importlib
 importlib.reload(sys)
 
+import gc
+
 import keras
-from keras.models import Model
+from keras.losses import categorical_crossentropy
+from keras.models import Model, load_model
+from keras.layers import concatenate, Reshape
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Lambda
 from keras import backend as K
 
@@ -44,27 +48,34 @@ for class_id in grouped.keys():
 # verify the data is formatted correctly
 print(x.dtype, x.min(), x.max(), x.shape)
 print(y.dtype, y.min(), y.max(), y.shape)
+# print(keras.utils.to_categorical(y, 10))
 
 # build colored versions
 colors = build_rainbow(len(np.unique(y)))
 colored_x = np.asarray([colors[cur_y] * cur_x for cur_x, cur_y in zip(x, y)])
 
+# sys.exit(0)
+
 class DataGenerator:
 
     def __init__(self, x, y, grouped):
         self.x = copy.deepcopy(x)
-        self.y = copy.deepcopy(y)
+        self.y = keras.utils.to_categorical(y, 10)
+        print(self.y.dtype)
         self.grouped = copy.deepcopy(grouped)
         self.num_classes = len(grouped)
         self.update_pos_neg_grouped = copy.deepcopy(grouped)
         self.anchor_grouped = copy.deepcopy(grouped)
+        self.transformed_value = copy.deepcopy(x)
 
-    def get_triples_data(self, batch_size, is_update=False):
+    def get_triples_data(self, batch_size, is_update=False, is_sample_cosine=True):
         if is_update:
             indices = self.get_triples_indices_with_strategy(batch_size)
+        elif is_sample_cosine:
+            indices = self.get_triples_indices_with_cosine(batch_size)
         else:
             indices = self.get_triples_indices(batch_size)
-        return self.x[indices[:,0]], self.x[indices[:,1]], self.x[indices[:,2]]
+        return self.x[indices[:,0]], self.x[indices[:,1]], self.x[indices[:,2]], self.y[indices[:, 0]], self.y[indices[:, 1]], self.y[indices[:, 2]]
 
     def get_triples_indices(self, batch_size):
         positive_labels = np.random.randint(0, self.num_classes, size=batch_size)
@@ -79,6 +90,60 @@ class DataGenerator:
             positive_j = (np.random.randint(1, m) + anchor_j) % m
             positive = positive_group[positive_j]
             triples_indices.append([anchor, positive, negative])
+        return np.asarray(triples_indices)
+
+    def __calc_apn_cosine(self, anchor, pos, neg):
+        na = neg - anchor
+        pa = pos - anchor
+        na = na.reshape(-1)
+        pa = pa.reshape(-1)
+        Lna = np.sqrt(na.dot(na))
+        Lpa = np.sqrt(pa.dot(pa))
+        cos_angle = na.dot(pa) / (Lna * Lpa)
+        if cos_angle > 0 and cos_angle < 1:
+            return True
+        return False
+
+    # 根据采样出来的三元组样本，x_ap 与 x_an 之间的夹角余弦值
+    def get_triples_indices_with_cosine(self, batch_size):
+        positive_labels = np.random.randint(0, self.num_classes, size=batch_size)
+        negative_labels = (np.random.randint(1, self.num_classes, size=batch_size) + positive_labels) % self.num_classes
+        triples_indices = []
+        for positive_label, negative_label in zip(positive_labels, negative_labels):
+            negative = np.random.choice(self.grouped[negative_label])
+            positive_group = self.grouped[positive_label]
+            m = len(positive_group)
+            anchor_j = np.random.randint(0, m)
+            anchor = positive_group[anchor_j]
+            sample_a = self.transformed_value[anchor]
+            sample_n = self.transformed_value[negative]
+
+            # select_positive_samples = list()
+            # for pos_idx in positive_group:
+            #     if pos_idx == anchor:
+            #         continue
+            #     sample_p = self.transformed_value[pos_idx]
+            #     if not self.__calc_apn_cosine(sample_a, sample_p, sample_n):
+            #         select_positive_samples.append(pos_idx)
+            # if len(select_positive_samples) == 0:
+            #     positive_j = (np.random.randint(1, m) + anchor_j) % m
+            #     positive = positive_group[positive_j]
+            # else:
+            #     positive = np.random.choice(select_positive_samples)
+
+            cnt_select = 0
+            while True:
+                cnt_select += 1
+                positive_j = (np.random.randint(1, m) + anchor_j) % m
+                positive = positive_group[positive_j]
+                sample_p = self.transformed_value[positive]
+                if self.__calc_apn_cosine(sample_a, sample_p, sample_n):
+                    break
+                if cnt_select >= 100:
+                    break
+            
+            triples_indices.append([anchor, positive, negative])
+        # print("\nget_triples_indices_with_cosine 采样数据集结束")
         return np.asarray(triples_indices)
 
     # 设计一个全局都可以访问的随机选择的数据集合
@@ -100,8 +165,11 @@ class DataGenerator:
         self.update_pos_neg_grouped[class_id] = remote_pn_idx
         self.anchor_grouped[class_id] = anchor_idx
 
+    def cb_update_total_predict_values(self, predict_values):
+        self.transformed_value = predict_values
 
-def triplet_loss(inputs, dist='sqeuclidean', margin='maxplus', margin_value=10):
+
+def triplet_loss(inputs, dist='sqeuclidean', margin='maxplus', margin_value=100):
     anchor, positive, negative = inputs
     positive_distance = K.square(anchor - positive)
     negative_distance = K.square(anchor - negative)
@@ -119,17 +187,27 @@ def triplet_loss(inputs, dist='sqeuclidean', margin='maxplus', margin_value=10):
     elif margin == "lgy_maxplus":
         loss = K.switch(
             K.greater(pn_distance, margin_value), 
-            margin_value + K.square(pn_distance),
+            K.square(pn_distance),
             K.switch(
-                K.greater(pn_distance, 0.0),
-                margin_value + pn_distance,
-                K.switch(
-                    K.greater(pn_distance, -1.0 * margin_value),
-                    K.abs(pn_distance),
-                    K.maximum(0.0, K.abs(pn_distance)))))
+                K.greater(pn_distance, -1.0 * margin_value),
+                5 * (margin_value + pn_distance),
+                K.maximum(0.0, K.abs(pn_distance))))
     return K.mean(loss)
 
-def build_model(input_shape):
+
+def classify_loss(inputs, anchor_input_label, positive_input_label, negative_input_label):
+    anchor_classify, positive_classify, negative_classify = inputs
+    y_true = concatenate([anchor_classify, positive_classify, negative_classify], axis=0)
+    print(y_true.get_shape())
+    anchor_input_label = K.squeeze(anchor_input_label, axis=1)
+    positive_input_label = K.squeeze(positive_input_label, axis=1)
+    negative_input_label = K.squeeze(negative_input_label, axis=1)
+    y_pred = concatenate([anchor_input_label, positive_input_label, negative_input_label], axis=0)
+    print(y_pred.get_shape())
+    return categorical_crossentropy(y_true, y_pred)
+
+
+def build_model(input_shape, label_shape):
     base_input = Input(input_shape)
     x = Conv2D(32, (3, 3), activation='relu')(base_input)
     x = MaxPooling2D((2, 2))(x)
@@ -137,23 +215,37 @@ def build_model(input_shape):
     x = MaxPooling2D((2, 2))(x)
     x = Dropout(0.25)(x)
     x = Flatten()(x)
-    x = Dense(2, activation='linear')(x)
-#     x = Lambda(lambda x: K.l2_normalize(x, axis=-1))(x) # force the embedding onto the surface of an n-sphere
+    x = Dense(32, activation='relu')(x)
+    loss_classify_layer = Dense(10, activation='softmax')(x)
+    x = Dense(2, activation='linear')(loss_classify_layer)
+    # x = Lambda(lambda x: K.l2_normalize(x, axis=-1))(x) # force the embedding onto the surface of an n-sphere
     embedding_model = Model(base_input, x, name='embedding')
+    classify_model = Model(base_input, loss_classify_layer, name="classify")
     
     anchor_input = Input(input_shape, name='anchor_input')
     positive_input = Input(input_shape, name='positive_input')
     negative_input = Input(input_shape, name='negative_input')
+
+    anchor_input_label = Input(label_shape, name="anchor_input_label")
+    positive_input_label = Input(label_shape, name="positive_input_label")
+    negative_input_label = Input(label_shape, name="negative_input_label")
     
     anchor_embedding = embedding_model(anchor_input)
     positive_embedding = embedding_model(positive_input)
     negative_embedding = embedding_model(negative_input)
 
+    anchor_classify = classify_model(anchor_input)
+    positive_classify = classify_model(positive_input)
+    negative_classify = classify_model(negative_input)
+
     inputs = [anchor_input, positive_input, negative_input]
-    outputs = [anchor_embedding, positive_embedding, negative_embedding]
+    outputs = [anchor_embedding, positive_embedding, negative_embedding, 
+               anchor_classify, positive_classify, negative_classify]
     triplet_model = Model(inputs, outputs)
     # triplet_model.add_loss(K.mean(triplet_loss(outputs)))
-    triplet_model.add_loss(K.mean(triplet_loss(outputs, dist='sqeuclidean', margin='lgy_maxplus')))
+    triplet_model.add_loss(
+        K.mean(triplet_loss(outputs[0:3], dist='sqeuclidean', margin='maxplus')) + 
+        classify_loss(outputs[3:6], anchor_input_label, positive_input_label, negative_input_label))
     triplet_model.compile(loss=None, optimizer='adam')
 
     return embedding_model, triplet_model
@@ -209,30 +301,42 @@ class ReCluster(keras.callbacks.Callback):
         # sys.exit(0)
 
     def on_epoch_end(self, epoch, logs={}):
+        xy = self.embedding_model.predict(self.x)
+        self.data_sampler_obj.cb_update_total_predict_values(xy)
+
         if (epoch + 1) % 5 != 0 or not self.is_update:
             return
-        xy = self.embedding_model.predict(self.x)
         print("total images shape is ", xy.shape)
         for class_id in range(len(self.grouped)):
             one_label_image_idx = self.grouped[class_id]
             selected_xy = xy[one_label_image_idx]
             self.cluster_one_class(class_id, selected_xy, one_label_image_idx)
 
-batch_size = 100
-epochs = 30
+batch_size = 1000
+epochs = 100
 plot_size = 5000
 is_update = False
+input_shape = (28, 28, 1)
+label_shape = (1, 10)
 sample_train = DataGenerator(x, y, grouped)
-embedding_model, triplet_model = build_model((28, 28, 1))
+embedding_model, triplet_model = build_model(input_shape, label_shape)
+
 plotter = Plotter(embedding_model, x, colored_x, plot_size)
 recluster = ReCluster(embedding_model, x, colored_x, grouped, sample_train, is_update=is_update)
 def triplet_generator(x, y, batch_size):
     while True:
-        x_anchor, x_positive, x_negative = sample_train.get_triples_data(batch_size, is_update=is_update)
+        x_anchor, x_positive, x_negative, y_a, y_p, y_n = sample_train.get_triples_data(batch_size, is_update=is_update)
+        y_a = np.expand_dims(y_a, axis=1)
+        y_p = np.expand_dims(y_p, axis=1)
+        y_n = np.expand_dims(y_n, axis=1)
+        print(y_a.shape)
         yield ({
             'anchor_input': x_anchor,
             'positive_input': x_positive,
-            'negative_input': x_negative
+            'negative_input': x_negative,
+            'anchor_input_label': y_a,
+            'positive_input_label': y_p,
+            'negative_input_label': y_n
             }, None)
 
 try:
@@ -244,7 +348,9 @@ try:
         callbacks=[plotter, recluster])
 except KeyboardInterrupt:
     triplet_model.save("triplet_model.h5")
+    gc.collect()
     pass
 triplet_model.save("triplet_model.h5")
+gc.collect()
 
 

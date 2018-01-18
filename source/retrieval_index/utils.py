@@ -10,6 +10,7 @@ from io import BytesIO
 import PIL.Image
 import IPython.display
 import shutil
+import matplotlib.pyplot as plt
 from math import sqrt
 
 
@@ -75,3 +76,24 @@ def show_array(a, fmt='png', filename=None, retina=False, zoom=None):
         with open(filename, 'wb') as f:
             image_data.seek(0)
             shutil.copyfileobj(image_data, f)
+
+
+def show_loss_function(margin_value=10):
+    pn_distance = range(-20, 21)
+    y = list()
+    for t_val in pn_distance:
+        print(t_val)
+        if t_val > margin_value:
+            # t_y = np.log(margin_value + np.exp(t_val))
+            t_y = np.square(t_val)
+            # t_y = max(t_y, margin_value + t_val)
+        elif t_val > -1.0 * margin_value:
+            t_y = 5 * (margin_value + t_val)
+        else:
+            t_y = 0.0
+        y.append(t_y)
+    plt.plot(pn_distance, y)
+    plt.show()
+
+# show_loss_function()
+
