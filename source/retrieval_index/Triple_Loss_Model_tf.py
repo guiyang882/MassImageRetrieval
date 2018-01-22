@@ -14,14 +14,13 @@ importlib.reload(sys)
 import tensorflow as tf
 
 import keras
-from keras.models import Model
-from keras.layers import Input
-
 import numpy as np
 from collections import defaultdict
 from sklearn.datasets import fetch_mldata
 from sklearn.cluster import KMeans
-from source.retrieval_index.utils import show_array, build_rainbow, plot_images
+from source.retrieval_index.utils import show_array, build_rainbow
+from source.retrieval_index.utils import plot_origin_images, plot_images
+
 
 # load MNIST
 mnist = fetch_mldata('MNIST original')
@@ -181,12 +180,22 @@ class TripleModel:
         self.all_y_true_label = tf.placeholder(
             shape=(None, 10), dtype=tf.float32, name="y_true_label")
 
+        self._loss1 = None
+        self._loss2 = None
         self._total_loss = None
         self._anchor_out = None
 
     @property
     def total_loss(self):
         return self._total_loss
+
+    @property
+    def loss1(self):
+        return self._loss1
+
+    @property
+    def loss2(self):
+        return self._loss2
 
     def shared_network(self, input_tensor, mode=tf.estimator.ModeKeys.TRAIN):
         conv1 = tf.layers.conv2d(inputs=input_tensor, filters=32,
@@ -208,7 +217,7 @@ class TripleModel:
         classify_tensor = tf.layers.dense(
             inputs=dense1, units=10, activation=tf.nn.softmax, name="classify_tensor")
         cluster_tensor = tf.layers.dense(
-            inputs=dense1, units=2, activation=None, name="cluster_tensor")
+            inputs=classify_tensor, units=2, activation=None, name="cluster_tensor")
         return cluster_tensor, classify_tensor
 
     def build_model(self):
@@ -218,6 +227,7 @@ class TripleModel:
             positive_out, classify_pos = self.shared_network(self.positive_input)
             scope.reuse_variables()
             negative_out, classify_neg = self.shared_network(self.negative_input)
+
             cluster_outs = [self._anchor_out, positive_out, negative_out]
             classify_outs = [classify_anchor, classify_pos, classify_neg]
         self._total_loss = self.get_total_loss(cluster_outs, classify_outs)
@@ -228,9 +238,11 @@ class TripleModel:
         loss2 = self.classify_loss_tf(y_pred=y_pred, y_true=self.all_y_true_label)
         # print(loss1.get_shape())
         # print(loss2.get_shape())
-        return tf.reduce_mean(loss1) + tf.reduce_mean(loss2)
+        self._loss1 = tf.reduce_mean(loss1)
+        self._loss2 = tf.reduce_mean(loss2)
+        return self._loss1 + self._loss2
 
-    def triplet_loss_tf(self, inputs, dist='sqeuclidean', margin='maxplus', margin_value=100):
+    def triplet_loss_tf(self, inputs, dist='sqeuclidean', margin='maxplus', margin_value=500):
         anchor, positive, negative = inputs
         positive_distance = tf.square(anchor - positive)
         negative_distance = tf.square(anchor - negative)
@@ -270,17 +282,16 @@ class TripleModel:
         })
         fp = "../../experiment/triple_loss/triple_loss_result_{}.png".format(epoch)
         show_array(255 - plot_images(self.images[:plot_size].squeeze(), xy), filename=fp)
+        file_name = "../../experiment/triple_loss/origin_tl_{}.png".format(epoch)
+        plot_origin_images(xy, y[:plot_size], colors, file_name)
 
     def cluster_one_class(self, data_sampler_obj, class_id, selected_xy, one_label_image_idx):
-        # print(selected_xy)
-        # print(selected_xy.shape)
-        # print(selected_xy.dtype)
+        # kmeans_model = KMeans(n_clusters=1, init="k-means++", n_jobs=1, max_iter=1)
+        # kmeans_model.fit(selected_xy)
+        # t_cluster_center = kmeans_model.cluster_centers_
 
-        kmeans_model = KMeans(n_clusters=1, init="k-means++", n_jobs=1,
-                              max_iter=1)
-        kmeans_model.fit(selected_xy)
-        t_cluster_center = kmeans_model.cluster_centers_
         # 获取每个点到聚类中心的距离，并且按照距离中心点的欧式距离从小到大排序
+        t_cluster_center = np.mean(selected_xy, axis=0)
         total_len = len(selected_xy)
         diff_xy = selected_xy - t_cluster_center
         dist_xy = diff_xy[:, 0] ** 2 + diff_xy[:, 1] ** 2
@@ -318,9 +329,9 @@ class TripleModel:
 
 def demo_train():
     batch_size = 2000
-    epochs = 100
-    plot_size = 5000
-    is_update = False
+    epochs = 200
+    plot_size = 10000
+    is_update = True
 
     sample_train = DataGenerator(x, y, grouped)
     sess = tf.InteractiveSession()
@@ -333,7 +344,7 @@ def demo_train():
 
     tf.global_variables_initializer().run()
 
-    if os.path.isdir("./log"):
+    if os.path.exists("./log/checkpoint"):
         saver.restore(sess, "./log/model.ckpt")
 
     try:
@@ -343,16 +354,18 @@ def demo_train():
                 x_a, x_p, x_n, y_a, y_p, y_n = sample_train.get_triples_data(
                     batch_size, is_update=is_update)
                 y_label = np.concatenate([y_a, y_p, y_n])
-                _, loss_v = sess.run([train_step, total_loss],
-                                     feed_dict={
-                                         main_model.anchor_input: x_a,
-                                         main_model.positive_input: x_p,
-                                         main_model.negative_input: x_n,
-                                         main_model.all_y_true_label: y_label
-                                     })
+                _, loss_v, loss1, loss2 = sess.run(
+                    [train_step, total_loss, main_model.loss1, main_model.loss2],
+                    feed_dict={
+                        main_model.anchor_input: x_a,
+                        main_model.positive_input: x_p,
+                        main_model.negative_input: x_n,
+                        main_model.all_y_true_label: y_label
+                    })
                 epoch_loss_vals.append(loss_v)
                 if iter % 50 == 0:
                     print("\t{} epoch, mean loss {}".format(epoch_id, np.mean(epoch_loss_vals)))
+                    print("\tloss1: {}, loss2: {}".format(loss1, loss2))
             print("{} epoch, mean loss {}".format(epoch_id, np.mean(epoch_loss_vals)))
             # predict and show the results
             main_model.get_cluster_resuls(sess, plot_size, epoch_id)

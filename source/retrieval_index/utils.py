@@ -4,14 +4,17 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import random
 import numpy as np
 from io import BytesIO
 import PIL.Image
 import IPython.display
 import shutil
-import matplotlib.pyplot as plt
 from math import sqrt
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 
 
 def build_rainbow(n, curve=None):
@@ -30,8 +33,15 @@ def build_rainbow(n, curve=None):
 def map_range(x, in_min, in_max, out_min, out_max):
     return out_min + (out_max - out_min) * (x - in_min) / (in_max - in_min)
 
-def plot_images(images, xy, blend=np.maximum, canvas_shape=(512,512), fill=0):    
-    h,w = images.shape[1:3]
+def plot_origin_images(xy, label, colors, file_name=""):
+    for idx in range(len(colors)):
+        part_res = xy[label==idx]
+        plt.scatter(part_res[:, 0], part_res[:, 1])
+    plt.grid(True)
+    plt.savefig(file_name)
+
+def plot_images(images, xy, blend=np.maximum, canvas_shape=(512, 512), fill=0):
+    h, w = images.shape[1:3]
     if images.ndim == 4:
         canvas_shape = (canvas_shape[0], canvas_shape[1], images.shape[3])
     
