@@ -8,3 +8,7 @@
 *.zip
 *.pyc
 *.h5
+.idea/
+experiment/
+source/retrieval_index/__pycache__/
+source/retrieval_index/log/

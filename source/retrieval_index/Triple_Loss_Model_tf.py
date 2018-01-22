@@ -11,17 +11,13 @@ sys.path.insert(0, proj_dir)
 import importlib
 importlib.reload(sys)
 
-import gc
+import tensorflow as tf
 
 import keras
-from keras.losses import categorical_crossentropy
-from keras.models import Model, load_model
-from keras.layers import concatenate, Reshape
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Lambda
-from keras import backend as K
+from keras.models import Model
+from keras.layers import Input
 
 import numpy as np
-import matplotlib.pyplot as plt
 from collections import defaultdict
 from sklearn.datasets import fetch_mldata
 from sklearn.cluster import KMeans
@@ -62,7 +58,6 @@ class DataGenerator:
         self.x = copy.deepcopy(x)
         self.y = keras.utils.to_categorical(y, 10)
         self.y = self.y.astype(np.float32)
-        print(self.y.dtype)
         self.grouped = copy.deepcopy(grouped)
         self.num_classes = len(grouped)
         self.update_pos_neg_grouped = copy.deepcopy(grouped)
@@ -169,97 +164,109 @@ class DataGenerator:
     def cb_update_total_predict_values(self, predict_values):
         self.transformed_value = predict_values
 
-
-def triplet_loss(inputs, dist='sqeuclidean', margin='maxplus', margin_value=100):
-    anchor, positive, negative = inputs
-    positive_distance = K.square(anchor - positive)
-    negative_distance = K.square(anchor - negative)
-    if dist == 'euclidean':
-        positive_distance = K.sqrt(K.sum(positive_distance, axis=-1, keepdims=True))
-        negative_distance = K.sqrt(K.sum(negative_distance, axis=-1, keepdims=True))
-    elif dist == 'sqeuclidean':
-        positive_distance = K.mean(positive_distance, axis=-1, keepdims=True)
-        negative_distance = K.mean(negative_distance, axis=-1, keepdims=True)
-    pn_distance = positive_distance - negative_distance
-    if margin == 'maxplus':
-        loss = K.maximum(0.0, margin_value + pn_distance)
-    elif margin == 'softplus':
-        loss = K.log(margin_value + K.exp(pn_distance))
-    elif margin == "lgy_maxplus":
-        loss = K.switch(
-            K.greater(pn_distance, margin_value), 
-            K.square(pn_distance),
-            K.switch(
-                K.greater(pn_distance, -1.0 * margin_value),
-                5 * (margin_value + pn_distance),
-                K.maximum(0.0, K.abs(pn_distance))))
-    return K.mean(loss)
-
-
-def classify_loss(inputs, y_true):
-    anchor_classify, positive_classify, negative_classify = inputs
-    y_pred = concatenate([anchor_classify, positive_classify, negative_classify], axis=0)
-    print(y_pred.get_shape())
-    print(y_true.get_shape())
-    return categorical_crossentropy(y_true, y_pred)
-
-
-def build_model(input_shape, label_dim):
-    base_input = Input(input_shape)
-    x = Conv2D(32, (3, 3), activation='relu')(base_input)
-    x = MaxPooling2D((2, 2))(x)
-    x = Conv2D(64, (3, 3), activation='relu')(x)
-    x = MaxPooling2D((2, 2))(x)
-    x = Dropout(0.25)(x)
-    x = Flatten()(x)
-    x = Dense(32, activation='relu')(x)
-    loss_classify_layer = Dense(10, activation='softmax')(x)
-    x = Dense(2, activation='linear')(loss_classify_layer)
-    # x = Lambda(lambda x: K.l2_normalize(x, axis=-1))(x) # force the embedding onto the surface of an n-sphere
-    embedding_model = Model(base_input, x, name='embedding')
-    classify_model = Model(base_input, loss_classify_layer, name="classify")
-    
-    anchor_input = Input(input_shape, name='anchor_input')
-    positive_input = Input(input_shape, name='positive_input')
-    negative_input = Input(input_shape, name='negative_input')
-
-    y_gt_label = K.placeholder(shape=(None, label_dim), name="y_gt_label")
-    # anchor_input_label = K.placeholder(shape=(None, label_dim), name="anchor_input_label")
-    # positive_input_label = K.placeholder(shape=(None, label_dim), name="positive_input_label")
-    # negative_input_label = K.placeholder(shape=(None, label_dim), name="negative_input_label")
-
-    anchor_embedding = embedding_model(anchor_input)
-    positive_embedding = embedding_model(positive_input)
-    negative_embedding = embedding_model(negative_input)
-
-    anchor_classify = classify_model(anchor_input)
-    positive_classify = classify_model(positive_input)
-    negative_classify = classify_model(negative_input)
-
-    inputs = [anchor_input, positive_input, negative_input]
-    outputs = [anchor_embedding, positive_embedding, negative_embedding, 
-               anchor_classify, positive_classify, negative_classify]
-    triplet_model = Model(inputs, outputs)
-    triplet_model.add_loss(
-        K.mean(triplet_loss(outputs[0:3], dist='sqeuclidean', margin='maxplus')) +
-        classify_loss(outputs[3:6], y_gt_label))
-    # triplet_model.add_loss(
-    #     classify_loss(outputs[3:6], y_gt_label))
-    triplet_model.compile(loss=None, optimizer='adam')
-
-    return embedding_model, triplet_model
-
-
-class Plotter(keras.callbacks.Callback):
-    def __init__(self, embedding_model, x, images, plot_size):
-        self.embedding_model = embedding_model
+class TripleModel:
+    def __init__(self, x, images):
         self.x = x
         self.images = images
-        self.plot_size = plot_size
-    
-    def on_epoch_end(self, epoch, logs={}):
-        xy = self.embedding_model.predict(self.x[:self.plot_size])
-        show_array(255-plot_images(self.images[:self.plot_size].squeeze(), xy), filename="../../experiment/triple_loss/triple_loss_result_{}.png".format(epoch))
+
+        self.anchor_input = tf.placeholder(
+            shape=(None, 28, 28, 1), dtype=tf.float32, name="anchor_input")
+        self.positive_input = tf.placeholder(
+            shape=(None, 28, 28, 1), dtype=tf.float32, name="positive_input")
+        self.negative_input = tf.placeholder(
+            shape=(None, 28, 28, 1), dtype=tf.float32, name="negative_input")
+        self.all_y_true_label = tf.placeholder(
+            shape=(None, 10), dtype=tf.float32, name="y_true_label")
+
+        self._total_loss = None
+        self._anchor_out = None
+
+    @property
+    def total_loss(self):
+        return self._total_loss
+
+    def shared_network(self, input_tensor, mode=tf.estimator.ModeKeys.TRAIN):
+        conv1 = tf.layers.conv2d(inputs=input_tensor, filters=32,
+                                 kernel_size=(3, 3), strides=(2, 2),
+                                 padding="same", activation=tf.nn.relu,
+                                 name="conv1")
+        pool1 = tf.layers.max_pooling2d(
+            inputs=conv1, pool_size=(2, 2), strides=(2, 2), name="pool1")
+        conv2 = tf.layers.conv2d(inputs=pool1, filters=64, kernel_size=(3, 3),
+                                 strides=(2, 2), padding="same",
+                                 activation=tf.nn.relu, name="conv2")
+        pool2 = tf.layers.max_pooling2d(
+            inputs=conv2, pool_size=(2, 2), strides=(2, 2), name="pool2")
+        drop1 = tf.layers.dropout(
+            inputs=pool2, rate=0.25, training=(mode == tf.estimator.ModeKeys.TRAIN))
+        flatten1 = tf.layers.flatten(inputs=drop1, name="flatten1")
+        dense1 = tf.layers.dense(
+            inputs=flatten1, units=32, activation=tf.nn.relu, name="dense1")
+        classify_tensor = tf.layers.dense(
+            inputs=dense1, units=10, activation=tf.nn.softmax, name="classify_tensor")
+        cluster_tensor = tf.layers.dense(
+            inputs=dense1, units=2, activation=None, name="cluster_tensor")
+        return cluster_tensor, classify_tensor
+
+    def build_model(self):
+        with tf.variable_scope("triple") as scope:
+            self._anchor_out, classify_anchor = self.shared_network(self.anchor_input)
+            scope.reuse_variables()
+            positive_out, classify_pos = self.shared_network(self.positive_input)
+            scope.reuse_variables()
+            negative_out, classify_neg = self.shared_network(self.negative_input)
+            cluster_outs = [self._anchor_out, positive_out, negative_out]
+            classify_outs = [classify_anchor, classify_pos, classify_neg]
+        self._total_loss = self.get_total_loss(cluster_outs, classify_outs)
+
+    def get_total_loss(self, cluster_outs, classify_outs):
+        loss1 = self.triplet_loss_tf(inputs=cluster_outs)
+        y_pred = tf.concat(classify_outs, axis=0)
+        loss2 = self.classify_loss_tf(y_pred=y_pred, y_true=self.all_y_true_label)
+        # print(loss1.get_shape())
+        # print(loss2.get_shape())
+        return tf.reduce_mean(loss1) + tf.reduce_mean(loss2)
+
+    def triplet_loss_tf(self, inputs, dist='sqeuclidean', margin='maxplus', margin_value=100):
+        anchor, positive, negative = inputs
+        positive_distance = tf.square(anchor - positive)
+        negative_distance = tf.square(anchor - negative)
+        if dist == 'euclidean':
+            positive_distance = tf.sqrt(
+                tf.reduce_sum(positive_distance, axis=-1, keep_dims=True))
+            negative_distance = tf.sqrt(
+                tf.reduce_sum(negative_distance, axis=-1, keep_dims=True))
+        elif dist == 'sqeuclidean':
+            positive_distance = tf.reduce_mean(positive_distance, axis=-1,
+                                               keep_dims=True)
+            negative_distance = tf.reduce_mean(negative_distance, axis=-1,
+                                               keep_dims=True)
+        pn_distance = positive_distance - negative_distance
+        if margin == 'maxplus':
+            loss = tf.maximum(0.0, margin_value + pn_distance)
+        elif margin == 'softplus':
+            loss = tf.log(margin_value + tf.exp(pn_distance))
+        elif margin == "lgy_maxplus":
+            loss = tf.keras.backend.switch(
+                tf.greater(pn_distance, margin_value),
+                tf.square(pn_distance),
+                tf.keras.backend.switch(
+                    tf.greater(pn_distance, -1.0 * margin_value),
+                    5 * (margin_value + pn_distance),
+                    tf.maximum(0.0, tf.abs(pn_distance))))
+        return tf.reduce_mean(loss)
+
+    def classify_loss_tf(self, y_pred, y_true):
+        # print(y_pred.get_shape())
+        # print(y_true.get_shape())
+        return tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
+
+    def get_cluster_resuls(self, session, plot_size, epoch):
+        xy = session.run(self._anchor_out, feed_dict={
+            self.anchor_input: self.x[:plot_size]
+        })
+        fp = "../../experiment/triple_loss/triple_loss_result_{}.png".format(epoch)
+        show_array(255 - plot_images(self.images[:plot_size].squeeze(), xy), filename=fp)
 
 
 class ReCluster(keras.callbacks.Callback):
@@ -311,54 +318,52 @@ class ReCluster(keras.callbacks.Callback):
             selected_xy = xy[one_label_image_idx]
             self.cluster_one_class(class_id, selected_xy, one_label_image_idx)
 
-batch_size = 1000
-epochs = 100
-plot_size = 5000
-is_update = False
-input_shape = (28, 28, 1)
-label_dim = 10
-sample_train = DataGenerator(x, y, grouped)
-embedding_model, triplet_model = build_model(input_shape, label_dim)
+def demo_train():
+    batch_size = 1000
+    epochs = 100
+    plot_size = 5000
+    is_update = False
 
-plotter = Plotter(embedding_model, x, colored_x, plot_size)
-recluster = ReCluster(embedding_model, x, colored_x, grouped, sample_train, is_update=is_update)
-def triplet_generator(x, y, batch_size):
-    while True:
-        x_anchor, x_positive, x_negative, y_a, y_p, y_n = sample_train.get_triples_data(batch_size, is_update=is_update)
-        y_label = np.concatenate([y_a, y_p, y_n])
-        # yield (
-        #     {
-        #         'anchor_input': x_anchor,
-        #         'positive_input': x_positive,
-        #         'negative_input': x_negative
-        #     }, 
-        #     {
-        #         'anchor_input_label': y_a,
-        #         'positive_input_label': y_p,
-        #         'negative_input_label': y_n
-        #     })
-        yield (
-            {
-                'anchor_input': x_anchor,
-                'positive_input': x_positive,
-                'negative_input': x_negative
-            }, 
-            {
-                'y_gt_label': y_label
-            })
+    sample_train = DataGenerator(x, y, grouped)
+    sess = tf.InteractiveSession()
 
-try:
-    history = triplet_model.fit_generator(
-        generator=triplet_generator(x, y, batch_size),
-        steps_per_epoch=len(y) // batch_size,
-        epochs=epochs,
-        verbose=True,
-        callbacks=[plotter, recluster])
-except KeyboardInterrupt:
-    triplet_model.save("triplet_model.h5")
-    gc.collect()
-    pass
-triplet_model.save("triplet_model.h5")
-gc.collect()
+    main_model = TripleModel(x, colored_x)
+    main_model.build_model()
+    total_loss = main_model.total_loss
+    train_step = tf.train.AdamOptimizer(0.01).minimize(total_loss)
+    saver = tf.train.Saver()
 
+    tf.global_variables_initializer().run()
 
+    if os.path.isdir("./log"):
+        saver.restore(sess, "./log/model.ckpt")
+
+    try:
+        for epoch_id in range(0, epochs):
+            epoch_loss_vals = list()
+            for iter in range(0, len(y)//batch_size):
+                x_a, x_p, x_n, y_a, y_p, y_n = sample_train.get_triples_data(
+                    batch_size, is_update=is_update)
+                y_label = np.concatenate([y_a, y_p, y_n])
+                _, loss_v = sess.run([train_step, total_loss],
+                                     feed_dict={
+                                         main_model.anchor_input: x_a,
+                                         main_model.positive_input: x_p,
+                                         main_model.negative_input: x_n,
+                                         main_model.all_y_true_label: y_label
+                                     })
+                epoch_loss_vals.append(loss_v)
+                if iter % 50 == 0:
+                    print("\t{} epoch, mean loss {}".format(epoch_id, np.mean(epoch_loss_vals)))
+            print("{} epoch, mean loss {}".format(epoch_id, np.mean(epoch_loss_vals)))
+            # predict and show the results
+            main_model.get_cluster_resuls(sess, plot_size, epoch_id)
+            if not os.path.isdir("./log/"):
+                os.makedirs("./log/")
+            saver.save(sess, "./log/model.ckpt")
+    except KeyboardInterrupt:
+        if not os.path.isdir("./log/"):
+            os.makedirs("./log/")
+        saver.save(sess, "./log/model.ckpt")
+
+demo_train()
