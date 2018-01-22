@@ -135,7 +135,7 @@ class DataGenerator:
                 sample_p = self.transformed_value[positive]
                 if self.__calc_apn_cosine(sample_a, sample_p, sample_n):
                     break
-                if cnt_select >= 100:
+                if cnt_select >= 50:
                     break
             
             triples_indices.append([anchor, positive, negative])
@@ -164,10 +164,13 @@ class DataGenerator:
     def cb_update_total_predict_values(self, predict_values):
         self.transformed_value = predict_values
 
+
 class TripleModel:
-    def __init__(self, x, images):
+    def __init__(self, x, images, y, grouped):
         self.x = x
         self.images = images
+        self.y = y
+        self.grouped = grouped
 
         self.anchor_input = tf.placeholder(
             shape=(None, 28, 28, 1), dtype=tf.float32, name="anchor_input")
@@ -268,23 +271,13 @@ class TripleModel:
         fp = "../../experiment/triple_loss/triple_loss_result_{}.png".format(epoch)
         show_array(255 - plot_images(self.images[:plot_size].squeeze(), xy), filename=fp)
 
-
-class ReCluster(keras.callbacks.Callback):
-    def __init__(self, embedding_model, x, images, grouped, data_sampler_obj=None, is_update=False):
-        self.embedding_model = embedding_model
-        self.x = x
-        self.images = images
-        self.grouped = grouped
-        # 该参数负责在聚类之后更新随机选择数据的候选集合
-        self.data_sampler_obj = data_sampler_obj
-        self.is_update = is_update
-
-    def cluster_one_class(self, class_id, selected_xy, one_label_image_idx):
+    def cluster_one_class(self, data_sampler_obj, class_id, selected_xy, one_label_image_idx):
         # print(selected_xy)
         # print(selected_xy.shape)
         # print(selected_xy.dtype)
-        
-        kmeans_model = KMeans(n_clusters=1, init="k-means++", n_jobs=1, max_iter=1)
+
+        kmeans_model = KMeans(n_clusters=1, init="k-means++", n_jobs=1,
+                              max_iter=1)
         kmeans_model.fit(selected_xy)
         t_cluster_center = kmeans_model.cluster_centers_
         # 获取每个点到聚类中心的距离，并且按照距离中心点的欧式距离从小到大排序
@@ -292,34 +285,39 @@ class ReCluster(keras.callbacks.Callback):
         diff_xy = selected_xy - t_cluster_center
         dist_xy = diff_xy[:, 0] ** 2 + diff_xy[:, 1] ** 2
         dist_xy_idx_sort = dist_xy.argsort()
-        outline_idx = dist_xy_idx_sort[int(total_len*0.8):]
-        anchor_idx = dist_xy_idx_sort[:int(total_len*0.2)]
+        outline_idx = dist_xy_idx_sort[int(total_len * 0.8):]
+        anchor_idx = dist_xy_idx_sort[:int(total_len * 0.2)]
 
         # print(t_cluster_center)
         # plt.scatter(selected_xy[:, 0], selected_xy[:, 1])
         # plt.scatter(t_cluster_center[:, 0], t_cluster_center[:, 1])
         # plt.show()
         # print(outline_idx)
-        self.data_sampler_obj.cb_update_random_selected(
-            class_id, 
-            one_label_image_idx[anchor_idx], 
+        data_sampler_obj.cb_update_random_selected(
+            class_id,
+            one_label_image_idx[anchor_idx],
             one_label_image_idx[outline_idx])
         # sys.exit(0)
 
-    def on_epoch_end(self, epoch, logs={}):
-        xy = self.embedding_model.predict(self.x)
-        self.data_sampler_obj.cb_update_total_predict_values(xy)
-
-        if (epoch + 1) % 5 != 0 or not self.is_update:
+    def cb_update_selected_index(self, session, data_sampler_obj=None, is_update=False):
+        if data_sampler_obj == None:
             return
+        xy = session.run(self._anchor_out, feed_dict={
+            self.anchor_input: self.x
+        })
+        data_sampler_obj.cb_update_total_predict_values(xy)
+
+        if not is_update:
+            return
+
         print("total images shape is ", xy.shape)
         for class_id in range(len(self.grouped)):
             one_label_image_idx = self.grouped[class_id]
             selected_xy = xy[one_label_image_idx]
-            self.cluster_one_class(class_id, selected_xy, one_label_image_idx)
+            self.cluster_one_class(data_sampler_obj, class_id, selected_xy, one_label_image_idx)
 
 def demo_train():
-    batch_size = 1000
+    batch_size = 2000
     epochs = 100
     plot_size = 5000
     is_update = False
@@ -327,7 +325,7 @@ def demo_train():
     sample_train = DataGenerator(x, y, grouped)
     sess = tf.InteractiveSession()
 
-    main_model = TripleModel(x, colored_x)
+    main_model = TripleModel(x, colored_x, y, grouped)
     main_model.build_model()
     total_loss = main_model.total_loss
     train_step = tf.train.AdamOptimizer(0.01).minimize(total_loss)
@@ -358,9 +356,10 @@ def demo_train():
             print("{} epoch, mean loss {}".format(epoch_id, np.mean(epoch_loss_vals)))
             # predict and show the results
             main_model.get_cluster_resuls(sess, plot_size, epoch_id)
+            main_model.cb_update_selected_index(sess, sample_train, is_update)
             if not os.path.isdir("./log/"):
                 os.makedirs("./log/")
-            saver.save(sess, "./log/model.ckpt")
+            saver.save(sess, "./log/model.ckpt", global_step=epoch_id)
     except KeyboardInterrupt:
         if not os.path.isdir("./log/"):
             os.makedirs("./log/")
