@@ -113,19 +113,6 @@ class DataGenerator:
             sample_a = self.transformed_value[anchor]
             sample_n = self.transformed_value[negative]
 
-            # select_positive_samples = list()
-            # for pos_idx in positive_group:
-            #     if pos_idx == anchor:
-            #         continue
-            #     sample_p = self.transformed_value[pos_idx]
-            #     if not self.__calc_apn_cosine(sample_a, sample_p, sample_n):
-            #         select_positive_samples.append(pos_idx)
-            # if len(select_positive_samples) == 0:
-            #     positive_j = (np.random.randint(1, m) + anchor_j) % m
-            #     positive = positive_group[positive_j]
-            # else:
-            #     positive = np.random.choice(select_positive_samples)
-
             cnt_select = 0
             while True:
                 cnt_select += 1
@@ -184,6 +171,7 @@ class TripleModel:
         self._loss2 = None
         self._total_loss = None
         self._anchor_out = None
+        self._accuracy = None
 
     @property
     def total_loss(self):
@@ -196,6 +184,10 @@ class TripleModel:
     @property
     def loss2(self):
         return self._loss2
+
+    @property
+    def accuracy(self):
+        return self._accuracy
 
     def shared_network(self, input_tensor, mode=tf.estimator.ModeKeys.TRAIN):
         conv1 = tf.layers.conv2d(inputs=input_tensor, filters=32,
@@ -217,7 +209,7 @@ class TripleModel:
         classify_tensor = tf.layers.dense(
             inputs=dense1, units=10, activation=tf.nn.softmax, name="classify_tensor")
         cluster_tensor = tf.layers.dense(
-            inputs=classify_tensor, units=2, activation=None, name="cluster_tensor")
+            inputs=dense1, units=2, activation=None, name="cluster_tensor")
         return cluster_tensor, classify_tensor
 
     def build_model(self):
@@ -231,6 +223,7 @@ class TripleModel:
             cluster_outs = [self._anchor_out, positive_out, negative_out]
             classify_outs = [classify_anchor, classify_pos, classify_neg]
         self._total_loss = self.get_total_loss(cluster_outs, classify_outs)
+        self._accuracy = self.get_classify_accuracy(classify_outs)
 
     def get_total_loss(self, cluster_outs, classify_outs):
         loss1 = self.triplet_loss_tf(inputs=cluster_outs)
@@ -240,7 +233,7 @@ class TripleModel:
         # print(loss2.get_shape())
         self._loss1 = tf.reduce_mean(loss1)
         self._loss2 = tf.reduce_mean(loss2)
-        return self._loss1 + self._loss2
+        return self._loss1 + self._loss2 * 0.0
 
     def triplet_loss_tf(self, inputs, dist='sqeuclidean', margin='maxplus', margin_value=500):
         anchor, positive, negative = inputs
@@ -272,9 +265,15 @@ class TripleModel:
         return tf.reduce_mean(loss)
 
     def classify_loss_tf(self, y_pred, y_true):
-        # print(y_pred.get_shape())
-        # print(y_true.get_shape())
         return tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
+
+    def get_classify_accuracy(self, classify_outs):
+        with tf.name_scope("accuracy"):
+            y_pred = tf.concat(classify_outs, axis=0)
+            correct_prediction = tf.equal(tf.argmax(y_pred, axis=1),
+                                          tf.argmax(self.all_y_true_label, axis=1))
+            correct_prediction = tf.cast(correct_prediction, tf.float32)
+        return tf.reduce_mean(correct_prediction)
 
     def get_cluster_resuls(self, session, plot_size, epoch):
         xy = session.run(self._anchor_out, feed_dict={
@@ -331,7 +330,7 @@ def demo_train():
     batch_size = 2000
     epochs = 200
     plot_size = 10000
-    is_update = True
+    is_update = False
 
     sample_train = DataGenerator(x, y, grouped)
     sess = tf.InteractiveSession()
@@ -345,7 +344,9 @@ def demo_train():
     tf.global_variables_initializer().run()
 
     if os.path.exists("./log/checkpoint"):
-        saver.restore(sess, "./log/model.ckpt")
+        ckpt = tf.train.get_checkpoint_state("./log/")
+        if ckpt and ckpt.model_checkpoint_path:
+            saver.restore(sess, ckpt.model_checkpoint_path)
 
     try:
         for epoch_id in range(0, epochs):

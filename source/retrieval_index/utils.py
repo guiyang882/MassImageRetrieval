@@ -16,7 +16,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
-
 def build_rainbow(n, curve=None):
     rgb = []
     width = 2 * np.pi
