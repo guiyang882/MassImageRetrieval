@@ -46,7 +46,7 @@ class TripleModel:
     def accuracy(self):
         return self._accuracy
 
-    def shared_network(self, input_tensor, mode=tf.estimator.ModeKeys.TRAIN):
+    def shared_network(self, input_tensor):
         conv1 = tf.layers.conv2d(inputs=input_tensor, filters=32,
                                  kernel_size=(3, 3), strides=(2, 2),
                                  padding="same", activation=tf.nn.relu,
@@ -74,7 +74,7 @@ class TripleModel:
             inputs=dense1, units=2, activation=None, name="cluster_tensor")
         return cluster_tensor, classify_tensor
 
-    def build_model(self, reuse=True):
+    def build_model(self):
         self.anchor_input = tf.placeholder(shape=(None, 28, 28, 1), dtype=tf.float32, name="anchor_input")
         self.positive_input = tf.placeholder(shape=(None, 28, 28, 1), dtype=tf.float32, name="positive_input")
         self.negative_input = tf.placeholder(shape=(None, 28, 28, 1), dtype=tf.float32,name="negative_input")
@@ -97,11 +97,9 @@ class TripleModel:
         loss1 = self.triplet_loss_tf(inputs=cluster_outs)
         y_pred = tf.concat(classify_outs, axis=0)
         loss2 = self.classify_loss_tf(y_pred=y_pred, y_true=self.all_y_true_label)
-        # print(loss1.get_shape())
-        # print(loss2.get_shape())
         self._loss1 = tf.reduce_mean(loss1)
         self._loss2 = tf.reduce_mean(loss2)
-        return self._loss1 + self._loss2 * 0.0
+        return self._loss1 * 0.0 + self._loss2
 
     def triplet_loss_tf(self, inputs, dist='sqeuclidean', margin='maxplus', margin_value=500):
         anchor, positive, negative = inputs

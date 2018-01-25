@@ -4,6 +4,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
 import copy
 import pickle
 import random
@@ -12,6 +13,7 @@ from collections import defaultdict
 
 import keras
 from keras.datasets import mnist
+from sklearn.cluster import KMeans
 from source.retrieval_index.utils import show_array, build_rainbow
 
 dataset_dir = "/Volumes/projects/ImageRetireval/dataset/"
@@ -138,7 +140,9 @@ class DataGenerator:
              zip(self.X_test, np.argmax(self.y_test, axis=1))])
 
     def get_triples_data(self, batch_size, is_update=False, is_sample_cosine=True):
-        if is_update:
+        if is_update and is_sample_cosine:
+            indices = self.get_triples_indices_with_cosine(batch_size, is_update)
+        elif is_update:
             indices = self.get_triples_indices_with_strategy(batch_size)
         elif is_sample_cosine:
             indices = self.get_triples_indices_with_cosine(batch_size)
@@ -179,7 +183,7 @@ class DataGenerator:
         return False
 
     # 根据采样出来的三元组样本，x_ap 与 x_an 之间的夹角余弦值
-    def get_triples_indices_with_cosine(self, batch_size):
+    def get_triples_indices_with_cosine(self, batch_size, is_update=False):
         positive_labels = np.random.randint(0, self.num_classes,
                                             size=batch_size)
         negative_labels = (np.random.randint(1, self.num_classes,
@@ -187,8 +191,13 @@ class DataGenerator:
         triples_indices = []
         for positive_label, negative_label in zip(positive_labels,
                                                   negative_labels):
-            negative = np.random.choice(self.grouped[negative_label])
-            positive_group = self.grouped[positive_label]
+            if is_update:
+                negative = np.random.choice(self.update_pos_neg_grouped[negative_label])
+                positive_group = self.update_pos_neg_grouped[positive_label]
+            else:
+                negative = np.random.choice(self.grouped[negative_label])
+                positive_group = self.grouped[positive_label]
+
             m = len(positive_group)
             anchor_j = np.random.randint(0, m)
             anchor = positive_group[anchor_j]
@@ -230,12 +239,50 @@ class DataGenerator:
         return np.asarray(triples_indices)
 
     def cb_update_random_selected(self, class_id, anchor_idx, remote_pn_idx):
-        print("更新了候选集合")
         self.update_pos_neg_grouped[class_id] = remote_pn_idx
         self.anchor_grouped[class_id] = anchor_idx
 
     def cb_update_total_predict_values(self, predict_values):
+        print("将训练样本全量测试了一次，数据更新回样本管理空间")
         self.transformed_value = predict_values
 
+        for class_id in range(self.num_classes):
+            one_label_image_idx = self.grouped[class_id]
+            self.cluster_one_class(class_id, one_label_image_idx)
+
+    def cluster_one_class(self, class_id, one_label_image_idx):
+        # 通过计算在训练数据集合中每个label的predict的分布情况，改进下次采样的策略
+        # 假设数据的分布为一个高斯分布
+        selected_xy = self.transformed_value[one_label_image_idx]
+        # t_kmeans_center = KMeans(n_clusters=1, max_iter=100, n_jobs=-1).fit(selected_xy).cluster_centers_
+        t_center_mean = np.mean(selected_xy, axis=0)
+        # print("kmeans center: {}, mean center: {}".format(t_kmeans_center, t_center_mean))
+        # print("class id: {}, mean center: {}".format(class_id, t_center_mean))
+
+        diff_xy = selected_xy - t_center_mean
+        dist_xy = diff_xy[:, 0] ** 2 + diff_xy[:, 1] ** 2
+        # dist_xy = np.sqrt(dist_xy)
+        # t_mean = np.mean(dist_xy, axis=0)
+        # t_std = np.std(dist_xy)
+        # t_gaussian = np.exp(-1.0 * (dist_xy - t_mean) ** 2 / (2 * (t_std ** 2))) / (t_std * np.sqrt(2 * np.pi))
+
+        # 选择下次的正负样本的索引
+        # t_down_limit = t_mean - 2 * t_std
+        # t_up_limit = t_mean + 2 * t_std
+        # b1 = t_gaussian > t_up_limit
+        # b2 = t_gaussian < t_down_limit
+        # t_select_idx = b1 | b2
+
+        # 选择下次anchor的索引
+        total_len = len(selected_xy)
+        dist_xy_idx_sort = dist_xy.argsort()
+        t_anchor_idx = dist_xy_idx_sort[:int(0.2*total_len)]
+        t_outline_idx = dist_xy_idx_sort[:int(0.4*total_len)]
+
+        self.cb_update_random_selected(
+            class_id,
+            one_label_image_idx[t_anchor_idx],
+            one_label_image_idx[t_outline_idx])
+        # sys.exit(0)
 
 sample_obj = DataGenerator(dataset_name="mnist")
