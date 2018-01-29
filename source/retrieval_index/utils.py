@@ -32,14 +32,14 @@ def build_rainbow(n, curve=None):
 def map_range(x, in_min, in_max, out_min, out_max):
     return out_min + (out_max - out_min) * (x - in_min) / (in_max - in_min)
 
-def plot_origin_images(xy, label, colors, file_name=""):
-    for idx in range(len(colors)):
+def plot_origin_images(xy, label, num_classes, file_name=""):
+    for idx in range(num_classes):
         part_res = xy[label==idx]
         plt.scatter(part_res[:, 0], part_res[:, 1])
     plt.grid(True)
     plt.savefig(file_name)
 
-def plot_images(images, xy, blend=np.maximum, canvas_shape=(512, 512), fill=0):
+def plot_images(images, xy, blend=np.maximum, canvas_shape=(1024, 1024), fill=0):
     h, w = images.shape[1:3]
     if images.ndim == 4:
         canvas_shape = (canvas_shape[0], canvas_shape[1], images.shape[3])

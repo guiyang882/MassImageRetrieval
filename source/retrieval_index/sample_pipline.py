@@ -15,6 +15,7 @@ import keras
 from keras.datasets import mnist
 from sklearn.cluster import KMeans
 from source.retrieval_index.utils import show_array, build_rainbow
+from source.retrieval_index.utils import plot_origin_images, plot_images, show_array
 
 dataset_dir = "/Volumes/projects/ImageRetireval/dataset/"
 
@@ -85,6 +86,7 @@ class DataGenerator:
         self.train_colored_x = None
         self.test_colors = None
         self.test_colored_x = None
+        self.epoch_id = 0
 
         if dataset_name == "mnist":
             self.num_classes = 10
@@ -277,12 +279,22 @@ class DataGenerator:
         total_len = len(selected_xy)
         dist_xy_idx_sort = dist_xy.argsort()
         t_anchor_idx = dist_xy_idx_sort[:int(0.2*total_len)]
-        t_outline_idx = dist_xy_idx_sort[:int(0.4*total_len)]
+        t_outline_idx = dist_xy_idx_sort[int(0.75*total_len):]
 
         self.cb_update_random_selected(
             class_id,
             one_label_image_idx[t_anchor_idx],
             one_label_image_idx[t_outline_idx])
         # sys.exit(0)
+
+    def show_predict_result(self, plot_size=10000):
+        self.epoch_id += 1
+        self.epoch_id %= 20
+        save_prefix = "../../experiment/triple_loss/"
+        file_name = save_prefix + "triple_loss_result_{}.png".format(self.epoch_id)
+        show_array(255 - plot_images(self.train_colored_x[:plot_size].squeeze(), self.transformed_value), filename=file_name)
+        file_name = save_prefix + "origin_tl_{}.png".format(self.epoch_id)
+        plot_origin_images(self.transformed_value, np.argmax(self.y_train), self.num_classes, file_name)
+
 
 sample_obj = DataGenerator(dataset_name="mnist")

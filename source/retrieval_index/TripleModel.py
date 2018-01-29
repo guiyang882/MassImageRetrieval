@@ -99,7 +99,7 @@ class TripleModel:
         loss2 = self.classify_loss_tf(y_pred=y_pred, y_true=self.all_y_true_label)
         self._loss1 = tf.reduce_mean(loss1)
         self._loss2 = tf.reduce_mean(loss2)
-        return self._loss1 * 0.0 + self._loss2
+        return self._loss1 + self._loss2
 
     def triplet_loss_tf(self, inputs, dist='sqeuclidean', margin='maxplus', margin_value=500):
         anchor, positive, negative = inputs

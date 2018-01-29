@@ -16,7 +16,6 @@ import tensorflow as tf
 
 from source.retrieval_index.TripleModel import TripleModel
 from source.retrieval_index.sample_pipline import DataGenerator
-from source.retrieval_index.utils import plot_origin_images, plot_images, show_array
 
 
 class TripleTrainer:
@@ -26,7 +25,7 @@ class TripleTrainer:
 
         self.batch_size = 2000
         self.epochs = 100
-        self.plot_size = 10000
+        self.plot_size = 60000
         self.is_update = True
 
         self.xy = None
@@ -75,14 +74,15 @@ class TripleTrainer:
                             self.triple_model.negative_input: x_n,
                             self.triple_model.all_y_true_label: y_label
                         })
-                    epoch_loss_vals.append([loss1, loss2])
+                    epoch_loss_vals.append([loss1, loss2, acc])
                     if iter % 10 == 0:
-                        print("\ttriple loss: {}, classify loss: {}, acc: {}".format(loss1, loss2, acc))
+                        print("\titer: {}, triple loss: {}, classify loss: {}, acc: {}".format(iter, *np.mean(epoch_loss_vals, axis=0)))
                 print("{} epoch, mean loss {}".format(epoch_id, np.mean(epoch_loss_vals, axis=0)))
 
                 # predict and show the results
                 self.predict_all_samples()
                 self.sample_creator.cb_update_total_predict_values(self.xy)
+                self.sample_creator.show_predict_result(self.plot_size)
 
                 # self.show_model_resuls(epoch_id)
                 self.save_model_log(epoch_id)
@@ -102,15 +102,6 @@ class TripleTrainer:
         self.xy = self.sess.run(self.triple_model.anchor_out, feed_dict={
             self.triple_model.anchor_input: self.sample_creator.X_train
         })
-
-    def show_model_resuls(self, epoch):
-        xy = self.sess.run(self.triple_model.anchor_out, feed_dict={
-            self.triple_model.anchor_input: self.sample_creator.X_train[:self.plot_size]
-        })
-        # fp = "../../experiment/triple_loss/triple_loss_result_{}.png".format(epoch)
-        # show_array(255 - plot_images(self.images[:self.plot_size].squeeze(), xy), filename=fp)
-        # file_name = "../../experiment/triple_loss/origin_tl_{}.png".format(epoch)
-        # plot_origin_images(xy, y[:plot_size], colors, file_name)
 
 
 if __name__ == '__main__':
