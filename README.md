@@ -10,6 +10,9 @@
 1. 所有的训练样本都是根据随机选择的，其中存在部分数据是很难被直接选择到的，导致10分类的分类器的分类性能下降
 2. 改进样本构造的方案，使得所有的样本都可以进入分类器进行训练
 
+### 实验结果
+* Triple Loss + Classification + Cosine Random Samples
+![image](https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png)
 
 ### TODOLIST
 - [x] 使用Res50提取图像的特征
