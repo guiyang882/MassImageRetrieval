@@ -12,7 +12,7 @@
 
 ### 实验结果
 * Triple Loss + Classification + Cosine Random Samples
-![image](https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png)
+ <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png" width = "400" height = "400" alt="实验结果图" align=center />
 
 ### TODOLIST
 - [x] 使用Res50提取图像的特征
