@@ -26,7 +26,7 @@ class SamplerBase:
 
 
 class AvgSampler(SamplerBase):
-
+    """在采样时使用一个set，保证被采样过的样本不能在被采样一次，直到没有可采样数据后，结束这一轮的训练"""
     def __init__(self, grouped=None):
         SamplerBase.__init__(self)
         if grouped is None:
@@ -99,3 +99,36 @@ class AvgSampler(SamplerBase):
         self.unique_grouped = deepcopy(self.grouped)
 
         return np.array(total_triples_indices)
+
+
+class InverseProbSampler(SamplerBase):
+    # 每一个batch采样时，将记录每个样本被采样的次数，每次会得到一个分布，
+    # 将分布改成概率p，下一次按照(1-p)去进行采样
+    def __init__(self, grouped=None):
+        SamplerBase.__init__(self)
+        if grouped is None:
+            raise ValueError("Should Give a Grouped Value, Type is Dict !")
+        self.grouped = deepcopy(grouped)
+        self.labels = np.array([key for key, _ in grouped.items()])
+        self.num_classes = len(self.labels)
+
+    def step_batch(self, batch_size):
+        positive_labels = np.random.randint(0, self.num_classes, size=batch_size)
+        negative_labels = np.random.randint(1, self.num_classes, size=batch_size)
+        negative_labels += positive_labels
+        negative_labels %= self.num_classes
+
+        triples_indices = []
+        for positive_label, negative_label in zip(positive_labels, negative_labels):
+            negative = np.random.choice(self.grouped[negative_label])
+            positive_group = self.grouped[positive_label]
+            m = len(positive_group)
+            anchor_j = np.random.randint(0, m)
+            anchor = positive_group[anchor_j]
+            positive_j = (np.random.randint(1, m) + anchor_j) % m
+            positive = positive_group[positive_j]
+            triples_indices.append([anchor, positive, negative])
+        return np.asarray(triples_indices)
+
+    def fetch_batch(self, batch_size):
+        pass

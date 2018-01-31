@@ -4,6 +4,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import sys
 import copy
 import pickle
@@ -302,13 +303,23 @@ class DataGenerator:
             one_label_image_idx[t_outline_idx])
         # sys.exit(0)
 
-    def show_predict_result(self, plot_size=10000):
+    def show_predict_result(self, plot_size=10000, is_save_predict=False):
         self.epoch_id += 1
         save_prefix = "../../experiment/triple_loss/"
         file_name = save_prefix + "triple_loss_result_{}.png".format(self.epoch_id)
         show_array(255 - plot_images(self.train_colored_x[:plot_size].squeeze(), self.transformed_value), filename=file_name)
         # file_name = save_prefix + "origin_tl_{}.png".format(self.epoch_id)
         # plot_origin_images(self.transformed_value, np.argmax(self.y_train), self.num_classes, file_name)
+        if is_save_predict:
+            save_prefix = "../../experiment/pred_results/"
+            if not os.path.isdir(save_prefix):
+                os.makedirs(save_prefix)
+            with open(save_prefix + "pred_results_{}.csv".format(self.epoch_id), "w") as writer:
+                for idx in range(0, len(self.transformed_value)):
+                    x = self.transformed_value[idx][0]
+                    y = self.transformed_value[idx][1]
+                    label = np.argmax(self.y_train[idx])
+                    writer.write("{},{},{}\n".format(x, y, label))
 
 
 if __name__ == '__main__':

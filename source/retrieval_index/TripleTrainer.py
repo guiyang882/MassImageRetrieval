@@ -82,7 +82,7 @@ class TripleTrainer:
                 # predict and show the results
                 self.predict_all_samples()
                 self.sample_creator.cb_update_total_predict_values(self.xy)
-                self.sample_creator.show_predict_result(self.plot_size)
+                self.sample_creator.show_predict_result(self.plot_size, is_save_predict=True)
 
                 # self.show_model_resuls(epoch_id)
                 self.save_model_log(epoch_id)
