@@ -21,7 +21,7 @@ from keras.models import Model, Sequential
 from keras.regularizers import l2
 from keras.utils.vis_utils import plot_model
 
-from source.retrieval_index.sample_pipline import mnist_dataset_reader
+from source.retrieval_index.DataSampler import mnist_dataset_reader
 
 
 def contrastive_loss(y_true, y_pred):

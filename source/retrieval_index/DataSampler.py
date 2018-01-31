@@ -16,6 +16,8 @@ from keras.datasets import mnist
 from sklearn.cluster import KMeans
 from source.retrieval_index.utils import show_array, build_rainbow
 from source.retrieval_index.utils import plot_origin_images, plot_images, show_array
+from source.retrieval_index.SamplerBase import AvgSampler
+
 
 dataset_dir = "/Volumes/projects/ImageRetireval/dataset/"
 
@@ -88,6 +90,8 @@ class DataGenerator:
         self.test_colored_x = None
         self.epoch_id = 0
 
+        self.m_AvgSampler = None
+
         if dataset_name == "mnist":
             self.num_classes = 10
             (X_train, y_train), (X_test, y_test) = mnist.load_data()
@@ -105,7 +109,9 @@ class DataGenerator:
             self.y_test = self.y_test.astype("int32")
             print(self.X_train.shape, self.X_train.dtype)
             print(self.y_train.shape, self.y_train.dtype)
-    
+
+            self.shuffle_train_samples()
+
     @property
     def train_sample_length(self):
         return len(self.X_train)
@@ -141,15 +147,24 @@ class DataGenerator:
             [self.test_colors[cur_y] * cur_x for cur_x, cur_y in
              zip(self.X_test, np.argmax(self.y_test, axis=1))])
 
+    def total_random_sampling(self, batch_size):
+        # 全量随机采样策略：在每轮采样中使得每个样本有且被采样一次
+        if self.m_AvgSampler is None:
+            self.m_AvgSampler = AvgSampler(self.grouped)
+        triples_indices = self.m_AvgSampler.fetch_batch(batch_size)
+        return triples_indices
+
     def get_triples_data(self, batch_size, is_update=False, is_sample_cosine=True):
-        if is_update and is_sample_cosine:
-            indices = self.get_triples_indices_with_cosine(batch_size, is_update)
-        elif is_update:
-            indices = self.get_triples_indices_with_strategy(batch_size)
-        elif is_sample_cosine:
-            indices = self.get_triples_indices_with_cosine(batch_size)
-        else:
-            indices = self.get_triples_indices(batch_size)
+        indices = self.total_random_sampling(batch_size)
+
+        # if is_update and is_sample_cosine:
+        #     indices = self.get_triples_indices_with_cosine(batch_size, is_update)
+        # elif is_update:
+        #     indices = self.get_triples_indices_with_strategy(batch_size)
+        # elif is_sample_cosine:
+        #     indices = self.get_triples_indices_with_cosine(batch_size)
+        # else:
+        #     indices = self.get_triples_indices(batch_size)
         return self.X_train[indices[:, 0]], self.X_train[indices[:, 1]], self.X_train[
             indices[:, 2]], self.y_train[indices[:, 0]], self.y_train[indices[:, 1]], \
                self.y_train[indices[:, 2]]
@@ -289,12 +304,17 @@ class DataGenerator:
 
     def show_predict_result(self, plot_size=10000):
         self.epoch_id += 1
-        self.epoch_id %= 20
         save_prefix = "../../experiment/triple_loss/"
         file_name = save_prefix + "triple_loss_result_{}.png".format(self.epoch_id)
         show_array(255 - plot_images(self.train_colored_x[:plot_size].squeeze(), self.transformed_value), filename=file_name)
-        file_name = save_prefix + "origin_tl_{}.png".format(self.epoch_id)
-        plot_origin_images(self.transformed_value, np.argmax(self.y_train), self.num_classes, file_name)
+        # file_name = save_prefix + "origin_tl_{}.png".format(self.epoch_id)
+        # plot_origin_images(self.transformed_value, np.argmax(self.y_train), self.num_classes, file_name)
 
 
-sample_obj = DataGenerator(dataset_name="mnist")
+if __name__ == '__main__':
+    sample_obj = DataGenerator(dataset_name="mnist")
+    cnt = 0
+    while True:
+        cnt += 1
+        sample_obj.total_random_sampling(batch_size=2000)
+        print("Sample Cnt is ", cnt)

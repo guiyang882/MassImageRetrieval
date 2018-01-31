@@ -15,7 +15,7 @@ import numpy as np
 import tensorflow as tf
 
 from source.retrieval_index.TripleModel import TripleModel
-from source.retrieval_index.sample_pipline import DataGenerator
+from source.retrieval_index.DataSampler import DataGenerator
 
 
 class TripleTrainer:
@@ -106,7 +106,6 @@ class TripleTrainer:
 
 if __name__ == '__main__':
     sample_creator = DataGenerator(dataset_name="mnist")
-    sample_creator.shuffle_train_samples()
 
     triple_model = TripleModel()
 

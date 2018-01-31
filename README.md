@@ -25,14 +25,14 @@
 - [ ] 根据TripleModel输入的数据中可以转化成PairWise的排序问题
 - [ ] 结果图中，聚类不够紧凑
     - [ ] 针对数据采样策略的修改
-        - [ ] 在采样时使用一个set，保证被采样过的样本不能在被采样一次，直到没有可采样数据后，结束这一轮的训练
+        - [x] 在采样时使用一个set，保证被采样过的样本不能在被采样一次，直到没有可采样数据后，结束这一轮的训练
         - [ ] 每一个batch采样时，将记录每个样本被采样的次数，每次会得到一个分布，将分布改成概率p，下一次按照(1-p)去进行采样
         - [ ] 损失函数为`max(0, dist loss)`，在训练段记录为0的样本，这些样本对整体训练没有梯度的贡献，进而指导采样
         - [ ] 没一轮训练后，会得到全量数据的距离矩阵，将距离矩阵转换成概率矩阵对采样端进行结果指导(MCMC)
     - [ ] 修改loss函数策略
-    
 
-### PaperList
+
+### Reference List
 01. [Deep Learning of Binary Hash Codes for Fast Image Retrieval](http://www.iis.sinica.edu.tw/~kevinlin311.tw/cvprw15.pdf)
 02. [Deep Relative Distance Learning- Tell the Difference Between Similar Vehicles](https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/Liu_Deep_Relative_Distance_CVPR_2016_paper.pdf)
 03. [Deep Supervised Discrete Hashing](https://arxiv.org/abs/1705.10999)
