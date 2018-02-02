@@ -18,6 +18,7 @@ from sklearn.cluster import KMeans
 from source.retrieval_index.utils import show_array, build_rainbow
 from source.retrieval_index.utils import plot_origin_images, plot_images, show_array
 from source.retrieval_index.SamplerBase import AvgSampler
+from source.retrieval_index.SamplerBase import InverseProbSampler
 
 
 dataset_dir = "/Volumes/projects/ImageRetireval/dataset/"
@@ -92,6 +93,7 @@ class DataGenerator:
         self.epoch_id = 0
 
         self.m_AvgSampler = None
+        self.m_InverseSampler = None
 
         if dataset_name == "mnist":
             self.num_classes = 10
@@ -155,9 +157,15 @@ class DataGenerator:
         triples_indices = self.m_AvgSampler.fetch_batch(batch_size)
         return triples_indices
 
-    def get_triples_data(self, batch_size, is_update=False, is_sample_cosine=True):
-        indices = self.total_random_sampling(batch_size)
+    def inverse_random_sampling(self, batch_size):
+        # 根据每轮采样端的计数，将计数转换成概率，然后按照1-p进行采样
+        if self.m_InverseSampler is None:
+            self.m_InverseSampler = InverseProbSampler(self.grouped)
+        triples_indices = self.m_InverseSampler.fetch_batch(batch_size)
+        return triples_indices
 
+    def get_triples_data(self, batch_size, is_update=False, is_sample_cosine=True):
+        indices = self.inverse_random_sampling(batch_size)
         # if is_update and is_sample_cosine:
         #     indices = self.get_triples_indices_with_cosine(batch_size, is_update)
         # elif is_update:
@@ -327,5 +335,7 @@ if __name__ == '__main__':
     cnt = 0
     while True:
         cnt += 1
-        sample_obj.total_random_sampling(batch_size=2000)
+        sample_obj.inverse_random_sampling(batch_size=2000)
         print("Sample Cnt is ", cnt)
+        if cnt > 0:
+            break

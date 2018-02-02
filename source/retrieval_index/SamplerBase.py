@@ -111,6 +111,20 @@ class InverseProbSampler(SamplerBase):
         self.grouped = deepcopy(grouped)
         self.labels = np.array([key for key, _ in grouped.items()])
         self.num_classes = len(self.labels)
+        self.sample_cnt_grouped = dict([(idx, np.zeros(len(grouped[idx])))for idx in grouped.keys()])
+        self.sample_prob_grouped = deepcopy(self.sample_cnt_grouped)
+        # 初始化采样概率
+        self.__init_sample_prob()
+
+    def __init_sample_prob(self):
+        for idx in self.sample_prob_grouped.keys():
+            n_samples = len(self.sample_prob_grouped[idx])
+            self.sample_prob_grouped[idx] = np.array([1/n_samples] * n_samples)
+
+    def __update_sample_prob(self):
+        for idx, val in self.sample_cnt_grouped.items():
+            a = max(val) - val
+            self.sample_prob_grouped[idx] = a / sum(a)
 
     def step_batch(self, batch_size):
         positive_labels = np.random.randint(0, self.num_classes, size=batch_size)
@@ -120,15 +134,29 @@ class InverseProbSampler(SamplerBase):
 
         triples_indices = []
         for positive_label, negative_label in zip(positive_labels, negative_labels):
-            negative = np.random.choice(self.grouped[negative_label])
-            positive_group = self.grouped[positive_label]
-            m = len(positive_group)
-            anchor_j = np.random.randint(0, m)
-            anchor = positive_group[anchor_j]
-            positive_j = (np.random.randint(1, m) + anchor_j) % m
-            positive = positive_group[positive_j]
+            negative = np.random.choice(
+                self.grouped[negative_label],
+                p=self.sample_prob_grouped[negative_label])
+
+            positive = np.random.choice(
+                self.grouped[positive_label],
+                p=self.sample_prob_grouped[positive_label])
+            positive_j = np.where(self.grouped[positive_label] == positive)[0]
+
+            m = len(self.grouped[positive_label])
+            anchor_j = int((np.random.randint(1, m) + positive_j) % m)
+            anchor = self.grouped[positive_label][anchor_j]
+
             triples_indices.append([anchor, positive, negative])
+
+            # 更新在候选集中对应的选择的坐标的计数器
+            neg_idx = np.where(self.grouped[negative_label] == negative)[0]
+            self.sample_cnt_grouped[negative_label][neg_idx] += 1
+            self.sample_cnt_grouped[positive_label][anchor_j] += 1
+            self.sample_cnt_grouped[positive_label][positive_j] += 1
         return np.asarray(triples_indices)
 
     def fetch_batch(self, batch_size):
-        pass
+        triples_indices = self.step_batch(batch_size)
+        self.__update_sample_prob()
+        return triples_indices
