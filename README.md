@@ -1,6 +1,6 @@
 ### 模型设计的指导
 1. 修改采样的方案，通过每隔几轮的更新候选集合进行采样
-    - 采样中当选择了(x_a, x_p)之后，如何确定选择的x_n是一个可以提升结果的点  
+    - 采样中当选择了(x_a, x_p)之后，如何确定选择的x_n是一个可以提升结果的点
 2. 细化case方案，重新定制损失函数，把损失函数可视化出来
 3. 设计x_a, x_p, x_n之间的矢量信息，求出夹角方向值，重新设计损失函数
 4. 通过增大的batch信息，将类内误差和类间误差添加到损失函数中去
@@ -13,6 +13,9 @@
 ### 实验结果
 * Triple Loss + Classification + Cosine Random Samples
  <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png" width = "400" height = "400" alt="实验结果图" align=center />
+
+* 对聚类结果按照密度进行可视化分析图
+ <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_density.png" width = "400" height = "400" alt="实验结果图" align=center />
 
 ### TODOLIST
 - [x] 使用Res50提取图像的特征
