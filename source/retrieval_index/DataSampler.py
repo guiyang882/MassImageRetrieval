@@ -165,7 +165,8 @@ class DataGenerator:
         return triples_indices
 
     def get_triples_data(self, batch_size, is_update=False, is_sample_cosine=True):
-        indices = self.inverse_random_sampling(batch_size)
+        # indices = self.inverse_random_sampling(batch_size)
+        indices = self.total_random_sampling(batch_size)
         # if is_update and is_sample_cosine:
         #     indices = self.get_triples_indices_with_cosine(batch_size, is_update)
         # elif is_update:

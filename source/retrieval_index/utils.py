@@ -105,23 +105,3 @@ def show_loss_function(margin_value=10):
         y.append(t_y)
     plt.plot(pn_distance, y)
     plt.show()
-
-# show_loss_function()
-
-def show_real_plane():
-    prefix_dir = "/Users/liuguiyang/Documents/CodeProj/PyProj/experiment/pred_results/"
-    for filename in os.listdir(prefix_dir):
-        if filename.startswith("."):
-            continue
-        column_name = ["x", "y", "label"]
-        pd_data = pd.read_csv(prefix_dir + filename, header=-1)
-        pd_data.columns = column_name
-        print(pd_data.shape)
-        print(pd_data.dtypes)
-        plt.scatter(pd_data["x"], pd_data["y"], pd_data["label"], c=pd_data["label"])
-        plt.show()
-        return
-
-
-if __name__ == '__main__':
-    show_real_plane()

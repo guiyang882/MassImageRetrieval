@@ -101,7 +101,7 @@ class TripleModel:
         self._loss2 = tf.reduce_mean(loss2)
         return self._loss1 + self._loss2
 
-    def triplet_loss_tf(self, inputs, dist='sqeuclidean', margin='maxplus', margin_value=500):
+    def triplet_loss_tf(self, inputs, dist='sqeuclidean', margin='maxplus', margin_value=5000):
         anchor, positive, negative = inputs
         positive_distance = tf.square(anchor - positive)
         negative_distance = tf.square(anchor - negative)

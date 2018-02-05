@@ -31,6 +31,13 @@
         - [ ] 损失函数为`max(0, dist loss)`，在训练段记录为0的样本，这些样本对整体训练没有梯度的贡献，进而指导采样
         - [ ] 每一轮训练后，会得到全量数据的距离矩阵，将距离矩阵转换成概率矩阵对采样端进行结果指导(MCMC)
     - [ ] 修改loss函数策略
+        - 没有关注到x_p到x_a的距离的控制
+        - 是否可以引入EM算法，对进行二维变量的混合高斯估计
+    - [ ] 当选择的数据sample(x_a, x_p, x_n)为一下情况，样本失效(目标是max(0.0, dist_p - dist_n + margin))
+        - dist_n too large, dist_p too small
+        - margin too small
+        - the categories of positive and negative samples are not close neighbors
+        - the selection of positive and negative samples is not on the same side
 
 
 ### Reference List
