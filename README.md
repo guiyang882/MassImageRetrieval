@@ -15,7 +15,9 @@
  <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png" width = "400" height = "400" alt="实验结果图" align=center />
 
 * 对聚类结果按照密度进行可视化分析图
- <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_density.png" width = "600" height = "400" alt="实验结果图" align=center />
+ <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_density.png" width = "500" height = "400" alt="实验结果图" align=center />
+
+------------------------------------------------------------------------------------------------------------
 
 ### TODOLIST
 - [x] 使用Res50提取图像的特征
@@ -42,7 +44,9 @@
         - the categories of positive and negative samples are not close neighbors
         - the selection of positive and negative samples is not on the same side
 - [x] 添加Hash Loss Function
+- [ ] 每次使用2000个Triple样本进行训练，相邻的两个epoch得到的预测结果差异很大，如何较好的控制每次聚类的结果，这个确实很重要？
 
+------------------------------------------------------------------------------------------------------------
 
 ### Reference List
 01. [Deep Learning of Binary Hash Codes for Fast Image Retrieval](http://www.iis.sinica.edu.tw/~kevinlin311.tw/cvprw15.pdf)
