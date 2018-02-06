@@ -45,11 +45,13 @@ class TripleTrainer:
         # total_loss = self.triple_model.total_loss
         # train_step = tf.train.AdamOptimizer(0.01).minimize(total_loss)
 
-        triple_loss = self.triple_model.loss1
-        classify_loss = self.triple_model.loss2
+        triple_loss = self.triple_model.triple_loss_val
+        classify_loss = self.triple_model.classify_loss_val
+        hash_loss = self.triple_model.hash_loss_val
 
         train_triple_step = tf.train.AdamOptimizer(0.01).minimize(triple_loss)
         train_classify_step = tf.train.AdamOptimizer(0.01).minimize(classify_loss)
+        train_hash_step = tf.train.AdamOptimizer(0.01).minimize(hash_loss)
 
         tf.global_variables_initializer().run()
 
@@ -62,11 +64,13 @@ class TripleTrainer:
                 for iter in range(0, self.sample_creator.train_sample_length//self.batch_size):
                     x_a, x_p, x_n, y_a, y_p, y_n = self.sample_creator.get_triples_data(self.batch_size, is_update=self.is_update)
                     y_label = np.concatenate([y_a, y_p, y_n])
-                    _, _, loss1, loss2, acc = self.sess.run(
+                    _, _, _, loss1, loss2, loss3, acc = self.sess.run(
                         [train_triple_step,
                          train_classify_step,
+                         train_hash_step,
                          triple_loss,
                          classify_loss,
+                         hash_loss,
                          self.triple_model.accuracy],
                         feed_dict={
                             self.triple_model.anchor_input: x_a,
@@ -74,9 +78,9 @@ class TripleTrainer:
                             self.triple_model.negative_input: x_n,
                             self.triple_model.all_y_true_label: y_label
                         })
-                    epoch_loss_vals.append([loss1, loss2, acc])
+                    epoch_loss_vals.append([loss1, loss2, loss3, acc])
                     if iter % 10 == 0:
-                        print("\titer: {}, triple loss: {}, classify loss: {}, acc: {}".format(iter, *np.mean(epoch_loss_vals, axis=0)))
+                        print("\titer: {}, triple loss: {}, classify loss: {}, hash loss: {}, acc: {}".format(iter, *np.mean(epoch_loss_vals, axis=0)))
                 print("{} epoch, mean loss {}".format(epoch_id, np.mean(epoch_loss_vals, axis=0)))
 
                 # predict and show the results
