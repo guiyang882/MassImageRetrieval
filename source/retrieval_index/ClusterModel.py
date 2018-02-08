@@ -124,7 +124,7 @@ class ClusterModel(BaseModel):
 
         with tf.name_scope('acc'):
             accuracy = tf.reduce_mean(
-                tf.cast(tf.equal(tf.arg_max(classify_tensor, 1), self.labels), tf.float32))
+                tf.cast(tf.equal(tf.argmax(classify_tensor, 1), self.labels), tf.float32))
 
         with tf.name_scope('loss/'):
             tf.summary.scalar('CenterLoss', center_loss)

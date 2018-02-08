@@ -21,7 +21,7 @@ from source.retrieval_index.DataSampler import DataGenerator
 
 
 mnist = input_data.read_data_sets(
-            "/Volumes/projects/DataSets/basic_dataset/", reshape=False)
+            "/Volumes/projects/DataSets/basic_dataset/mnist", reshape=False)
 mean_data = np.mean(mnist.train.images, axis=0)
 
 
@@ -41,7 +41,7 @@ class ClusterTrainer:
         self.model_param = None
         self.sess = tf.InteractiveSession()
         self.saver = None
-        self.log_save_dir = "./log/cluster"
+        self.log_save_dir = "./log/cluster/"
 
     def reload_model(self):
         if os.path.exists(self.log_save_dir + "checkpoint"):
@@ -62,6 +62,7 @@ class ClusterTrainer:
         tf.global_variables_initializer().run()
 
         writer = tf.summary.FileWriter(self.log_save_dir, self.sess.graph)
+        self.saver = tf.train.Saver(max_to_keep=3)
 
         step = self.sess.run(self.global_step)
         N_step_pre_Epoch = len(mnist.train.images) // self.batch_size
