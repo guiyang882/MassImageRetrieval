@@ -11,22 +11,19 @@
 2. 改进样本构造的方案，使得所有的样本都可以进入分类器进行训练
 
 ### 实验结果
-* Triple Loss + Classification + Cosine Random Samples
- <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png" width = "400" height = "400" alt="实验结果图" align=center />
-
-* 对聚类结果按照密度进行可视化分析图
- <!-- <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_density.png" width = "500" height = "400" alt="实验结果图" align=center /> -->
+<!-- * Triple Loss + Classification + Cosine Random Samples -->
+<!-- <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png" width = "400" height = "400" alt="实验结果图" align=center /> -->
 
 <table border="0" align="center" cellpadding="0" cellspacing="0">
   <tr>
     <td valign="top">
         <div style="margin-left:100px;">
-            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_density.png" width="300"/>
+            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png" width="300" title="Triple Loss + Classification + Cosine Random Samples"/>
         </div>
     </td>
     <td valign="top">
         <div style="margin-left:100px;">
-            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classify_hash.png" width="300"/>
+            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classify_hash.png" width="300" title="Triple Loss + Classification + Hash Loss"/>
         </div>
     </td>
   </tr>
