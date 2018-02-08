@@ -15,7 +15,22 @@
  <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png" width = "400" height = "400" alt="实验结果图" align=center />
 
 * 对聚类结果按照密度进行可视化分析图
- <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_density.png" width = "500" height = "400" alt="实验结果图" align=center />
+ <!-- <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_density.png" width = "500" height = "400" alt="实验结果图" align=center /> -->
+
+<table border="0" align="center" cellpadding="0" cellspacing="0">
+  <tr>
+    <td valign="top">
+        <div style="margin-left:100px;">
+            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_density.png" width="300"/>
+        </div>
+    </td>
+    <td valign="top">
+        <div style="margin-left:100px;">
+            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classify_hash.png" width="300"/>
+        </div>
+    </td>
+  </tr>
+</table>
 
 ------------------------------------------------------------------------------------------------------------
 
@@ -45,6 +60,7 @@
         - the selection of positive and negative samples is not on the same side
 - [x] 添加Hash Loss Function
 - [ ] 每次使用2000个Triple样本进行训练，相邻的两个epoch得到的预测结果差异很大，如何较好的控制每次聚类的结果，这个确实很重要？
+- [x] 使用SoftMax Loss + Center Loss进行训练，得到模型
 
 ------------------------------------------------------------------------------------------------------------
 
