@@ -35,12 +35,12 @@
   <tr>
     <td valign="top">
         <div style="margin-left:100px;">
-            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_0.5_0.5.png" width="300" title="Cluster Model 0.5+0.5"/>
+            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_0.5_0.5.png" width="300" height="300" title="Cluster Model 0.5+0.5"/>
         </div>
     </td>
     <td valign="top">
         <div style="margin-left:100px;">
-            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_1.0_1.0.png" width="300" title="Cluster Model 1.0+1.0"/>
+            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_1.0_1.0.png" width="300" height="300" title="Cluster Model 1.0+1.0"/>
         </div>
     </td>
   </tr>
