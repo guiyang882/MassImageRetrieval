@@ -10,6 +10,8 @@
 1. 所有的训练样本都是根据随机选择的，其中存在部分数据是很难被直接选择到的，导致10分类的分类器的分类性能下降
 2. 改进样本构造的方案，使得所有的样本都可以进入分类器进行训练
 
+------------------------------------------------------------------------------------------------------------
+
 ### 实验结果
 <!-- * Triple Loss + Classification + Cosine Random Samples -->
 <!-- <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classifiy.png" width = "400" height = "400" alt="实验结果图" align=center /> -->
@@ -24,6 +26,21 @@
     <td valign="top">
         <div style="margin-left:100px;">
             <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/triple_classify_hash.png" width="300" title="Triple Loss + Classification + Hash Loss"/>
+        </div>
+    </td>
+  </tr>
+</table>
+
+<table border="0" align="center" cellpadding="0" cellspacing="0">
+  <tr>
+    <td valign="top">
+        <div style="margin-left:100px;">
+            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_0.5_0.5.png" width="300" title="Cluster Model 0.5+0.5"/>
+        </div>
+    </td>
+    <td valign="top">
+        <div style="margin-left:100px;">
+            <img src="https://github.com/liuguiyangnwpu/MassImageRetrieval/blob/master/experiment/showImages/cluster_1.0_1.0.png" width="300" title="Cluster Model 1.0+1.0"/>
         </div>
     </td>
   </tr>

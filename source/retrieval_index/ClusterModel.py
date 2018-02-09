@@ -26,8 +26,8 @@ class ClusterModel(BaseModel):
                                                name="input_names")
             self.labels = tf.placeholder(tf.int64, shape=(None), name="labels")
 
-        self.ratio = 0.5
-        self.alpha = 0.5
+        self.ratio = 1.0
+        self.alpha = 1.0
         self.num_classes = 10
 
     def get_center_loss_tf(self, features):

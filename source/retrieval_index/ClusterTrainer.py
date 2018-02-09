@@ -31,8 +31,8 @@ class ClusterTrainer:
         self.sample_creator = sample_creator
         self.train_model = train_model
 
-        self.batch_size = 256
-        self.epochs = 100
+        self.batch_size = 512
+        self.epochs = 4000
         self.plot_size = 60000
         self.is_update = True
         self.lr = 0.001
@@ -55,7 +55,8 @@ class ClusterTrainer:
         optimizer = tf.train.AdamOptimizer(self.lr)
 
         with tf.control_dependencies([self.model_param["centers_update_op"]]):
-            train_op = optimizer.minimize(self.model_param["total_loss"], global_step=self.global_step)
+            train_op = optimizer.minimize(
+                self.model_param["total_loss"], global_step=self.global_step)
 
         summary_op = tf.summary.merge_all()
 
@@ -64,7 +65,9 @@ class ClusterTrainer:
         writer = tf.summary.FileWriter(self.log_save_dir, self.sess.graph)
         self.saver = tf.train.Saver(max_to_keep=3)
 
+        self.reload_model()
         step = self.sess.run(self.global_step)
+
         N_step_pre_Epoch = len(mnist.train.images) // self.batch_size
         while step <= self.epochs * N_step_pre_Epoch:
             batch_images, batch_labels = mnist.train.next_batch(self.batch_size)
@@ -109,7 +112,6 @@ class ClusterTrainer:
             })
         labels = mnist.train.labels[:10000]
 
-        f = plt.figure(figsize=(16, 9))
         c = ['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff',
              '#ff00ff', '#990000', '#999900', '#009900', '#009999']
         for i in range(10):
